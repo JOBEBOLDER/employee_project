@@ -1,0 +1,17 @@
+# macOS & system
+.DS_Store
+
+# IntelliJ / IDEA
+.idea/
+*.iml
+
+# Build & runtime
+out/
+classes/
+__pycache__/
+node_modules/
+.env
+
+# Other common folders
+Documents/
+Downloads/

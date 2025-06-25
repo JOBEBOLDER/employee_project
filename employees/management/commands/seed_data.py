@@ -1,0 +1,123 @@
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+from faker import Faker
+import random
+from decimal import Decimal
+from datetime import date, timedelta
+
+from departments.models import Department
+from employees.models import Employee, Performance
+from attendance.models import Attendance, LeaveRequest
+
+fake = Faker()
+
+class Command(BaseCommand):
+    help = 'Seed database with fake data'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--employees', type=int, default=30, help='Number of employees to create')
+
+    def handle(self, *args, **options):
+        num_employees = options['employees']
+        
+        self.stdout.write('Creating departments...')
+        departments = self.create_departments()
+        
+        self.stdout.write(f'Creating {num_employees} employees...')
+        employees = self.create_employees(departments, num_employees)
+        
+        self.stdout.write('Creating performance reviews...')
+        self.create_performance_reviews(employees)
+        
+        self.stdout.write('Creating attendance records...')
+        self.create_attendance_records(employees)
+        
+        self.stdout.write(self.style.SUCCESS(f'Successfully created {num_employees} employees with related data!'))
+
+    def create_departments(self):
+        departments_data = [
+            {'name': 'Engineering', 'description': 'Software development and technical operations'},
+            {'name': 'Human Resources', 'description': 'HR and employee management'},
+            {'name': 'Sales', 'description': 'Sales and business development'},
+            {'name': 'Marketing', 'description': 'Marketing and brand management'},
+            {'name': 'Finance', 'description': 'Financial operations'},
+        ]
+        
+        departments = []
+        for data in departments_data:
+            dept, created = Department.objects.get_or_create(
+                name=data['name'],
+                defaults={'description': data['description']}
+            )
+            departments.append(dept)
+        
+        return departments
+
+    def create_employees(self, departments, count):
+        employees = []
+        for i in range(count):
+            department = random.choice(departments)
+            
+            employee = Employee.objects.create(
+                first_name=fake.first_name(),
+                last_name=fake.last_name(),
+                email=fake.unique.email(),
+                phone_number=fake.phone_number()[:15],
+                address=fake.address(),
+                date_of_birth=fake.date_of_birth(minimum_age=22, maximum_age=65),
+                gender=random.choice(['M', 'F', 'O']),
+                department=department,
+                position=fake.job(),
+                date_joined=fake.date_between(start_date='-2y', end_date='today'),
+                salary=Decimal(random.randint(40000, 120000)),
+                employment_status=random.choice(['ACTIVE', 'ACTIVE', 'ACTIVE', 'INACTIVE']),
+            )
+            employees.append(employee)
+        
+        return employees
+
+    def create_performance_reviews(self, employees):
+        for employee in employees:
+            num_reviews = random.randint(1, 3)
+            used_dates = set()
+            
+            for _ in range(num_reviews):
+                # 确保每个员工的评估日期不重复
+                max_attempts = 10
+                for attempt in range(max_attempts):
+                    review_date = fake.date_between(start_date=employee.date_joined, end_date='today')
+                    if review_date not in used_dates:
+                        used_dates.add(review_date)
+                        break
+                else:
+                    # 如果10次尝试都失败，跳过这个评估
+                    continue
+                    
+                Performance.objects.create(
+                    employee=employee,
+                    rating=random.randint(1, 5),
+                    review_date=review_date,
+                    reviewer=fake.name(),
+                    comments=fake.paragraph(),
+                )
+
+    def create_attendance_records(self, employees):
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=30)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() < 5:  # Weekdays only
+                for employee in employees:
+                    if employee.is_active and random.random() < 0.9:
+                        Attendance.objects.create(
+                            employee=employee,
+                            date=current_date,
+                            status=random.choices(
+                                ['PRESENT', 'ABSENT', 'LATE', 'SICK_LEAVE'],
+                                weights=[80, 10, 8, 2]
+                            )[0],
+                            check_in_time=f"{random.randint(8,9)}:{random.randint(0,59):02d}",
+                            check_out_time=f"{random.randint(17,19)}:{random.randint(0,59):02d}",
+                        )
+            current_date += timedelta(days=1)
