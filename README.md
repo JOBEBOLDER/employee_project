@@ -9,6 +9,7 @@ This project implements a full-featured employee management system with:
 - Data analytics and visualization
 - Swagger API documentation
 - Admin interface for data management
+![alt text](image.png)
 
 ## 🏗️ Architecture
 
