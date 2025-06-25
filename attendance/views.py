@@ -279,26 +279,10 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         })
 
 class AttendanceAnalyticsView(APIView):
-    """Attendance analytics API providing comprehensive statistical insights.
-    
-    Generates attendance reports including monthly overviews, department-wise
-    statistics, and working hour analytics for specified time periods.
-    """
+    """Attendance analytics API providing comprehensive statistical insights."""
     
     def get(self, request):
-        """Returns comprehensive attendance analytics data.
-        
-        Query Parameters:
-            month: Optional month filter (1-12)
-            year: Optional year filter (defaults to current year)
-            
-        Returns:
-            Response containing attendance analytics including:
-            - Monthly attendance overview
-            - Status distribution
-            - Department-wise attendance rates
-            - Average working hours
-        """
+        """Returns comprehensive attendance analytics data."""
         month = request.query_params.get('month')
         year = request.query_params.get('year', timezone.now().year)
         
@@ -309,10 +293,15 @@ class AttendanceAnalyticsView(APIView):
         elif year:
             queryset = queryset.filter(date__year=year)
         
-        # Monthly overview
+        # Monthly overview - 生成最近6个月的数据
         monthly_data = defaultdict(lambda: {'present': 0, 'absent': 0, 'late': 0})
         
-        for record in queryset.filter(date__year=year):
+        # 获取最近6个月
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=180)
+        
+        # 按月份统计实际数据
+        for record in queryset.filter(date__gte=start_date):
             month_name = calendar.month_name[record.date.month]
             if record.status == 'PRESENT':
                 monthly_data[month_name]['present'] += 1
@@ -321,17 +310,37 @@ class AttendanceAnalyticsView(APIView):
             elif record.status == 'LATE':
                 monthly_data[month_name]['late'] += 1
         
-        monthly_overview = [
-            {
-                'month': month_name,
-                'present': data['present'],
-                'absent': data['absent'],
-                'late': data['late']
-            }
-            for month_name, data in monthly_data.items()
-        ]
+        # 确保所有月份都有数据（即使是0）
+        current_date = start_date
+        while current_date <= end_date:
+            month_name = calendar.month_name[current_date.month]
+            if month_name not in monthly_data:
+                monthly_data[month_name] = {'present': 0, 'absent': 0, 'late': 0}
+            current_date = current_date.replace(day=1)
+            # 移动到下个月
+            if current_date.month == 12:
+                current_date = current_date.replace(year=current_date.year + 1, month=1)
+            else:
+                current_date = current_date.replace(month=current_date.month + 1)
         
-        # Status distribution
+        monthly_overview = []
+        
+        # 按时间顺序排列最近6个月
+        for i in range(6):
+            target_date = end_date - timedelta(days=30 * i)
+            month_name = calendar.month_name[target_date.month]
+            if month_name in monthly_data:
+                monthly_overview.append({
+                    'month': month_name,
+                    'present': monthly_data[month_name]['present'],
+                    'absent': monthly_data[month_name]['absent'],
+                    'late': monthly_data[month_name]['late']
+                })
+        
+        # 反转顺序，让最早的月份在前面
+        monthly_overview.reverse()
+        
+        # 其余代码保持不变...
         status_counts = queryset.values('status').annotate(count=Count('id')).order_by('-count')
         attendance_by_status = [
             {'status': item['status'], 'count': item['count']}

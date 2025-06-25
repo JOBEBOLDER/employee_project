@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance - Employee Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-calendar-check"></i> Attendance Records</h1>
+    <div>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addAttendanceModal">
+            <i class="fas fa-plus"></i> Add Record
+        </button>
+        <button class="btn btn-info" onclick="exportAttendance()">
+            <i class="fas fa-download"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-2">
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="PRESENT">Present</option>
+                    <option value="ABSENT">Absent</option>
+                    <option value="LATE">Late</option>
+                    <option value="SICK_LEAVE">Sick Leave</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" id="dateFromFilter">
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" id="dateToFilter">
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search employees..." id="searchInput">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-primary w-100" onclick="applyFilters()">Filter</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success" id="presentCount">0</h5>
+                <p class="card-text">Present Today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger" id="absentCount">0</h5>
+                <p class="card-text">Absent Today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning" id="lateCount">0</h5>
+                <p class="card-text">Late Today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info" id="attendanceRate">0%</h5>
+                <p class="card-text">Attendance Rate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Check In</th>
+                        <th>Check Out</th>
+                        <th>Working Hours</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceTableBody">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav id="pagination"></nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilters = {};
+
+async function loadAttendance() {
+    try {
+        const params = new URLSearchParams(currentFilters);
+        const response = await fetch(`/api/attendance/?${params}`);
+        const data = await response.json();
+        
+        displayAttendance(data.results || data);
+        loadAttendanceStats();
+        
+    } catch (error) {
+        console.error('Error loading attendance:', error);
+        showAlert('Error loading attendance records', 'danger');
+    }
+}
+
+function displayAttendance(records) {
+    const tbody = document.getElementById('attendanceTableBody');
+    tbody.innerHTML = records.map(record => `
+        <tr>
+            <td>${record.employee_name}</td>
+            <td>${new Date(record.date).toLocaleDateString()}</td>
+            <td>
+                <span class="badge bg-${getStatusColor(record.status)}">
+                    ${record.status_display}
+                </span>
+            </td>
+            <td>${record.check_in_time || '-'}</td>
+            <td>${record.check_out_time || '-'}</td>
+            <td>${record.working_hours ? record.working_hours.toFixed(2) + 'h' : '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewRecord(${record.id})">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="editRecord(${record.id})">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'PRESENT': 'success',
+        'ABSENT': 'danger',
+        'LATE': 'warning',
+        'SICK_LEAVE': 'info',
+        'VACATION': 'secondary',
+        'HOLIDAY': 'primary'
+    };
+    return colors[status] || 'secondary';
+}
+
+async function loadAttendanceStats() {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await fetch(`/api/attendance/?date=${today}`);
+        const data = await response.json();
+        const records = data.results || data;
+        
+        const stats = {
+            present: records.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length,
+            absent: records.filter(r => r.status === 'ABSENT').length,
+            late: records.filter(r => r.status === 'LATE').length,
+            total: records.length
+        };
+        
+        document.getElementById('presentCount').textContent = stats.present;
+        document.getElementById('absentCount').textContent = stats.absent;
+        document.getElementById('lateCount').textContent = stats.late;
+        
+        const rate = stats.total > 0 ? ((stats.present / stats.total) * 100).toFixed(1) : 0;
+        document.getElementById('attendanceRate').textContent = rate + '%';
+        
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+function applyFilters() {
+    currentFilters = {};
+    
+    const status = document.getElementById('statusFilter').value;
+    const dateFrom = document.getElementById('dateFromFilter').value;
+    const dateTo = document.getElementById('dateToFilter').value;
+    const search = document.getElementById('searchInput').value;
+    
+    if (status) currentFilters.status = status;
+    if (dateFrom) currentFilters.date_from = dateFrom;
+    if (dateTo) currentFilters.date_to = dateTo;
+    if (search) currentFilters.search = search;
+    
+    loadAttendance();
+}
+
+function viewRecord(id) {
+    window.open(`/api/attendance/${id}/`, '_blank');
+}
+
+function editRecord(id) {
+    alert('Edit functionality to be implemented');
+}
+
+function exportAttendance() {
+    const params = new URLSearchParams(currentFilters);
+    window.open(`/api/attendance/?${params}&format=csv`);
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('h1'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 3000);
+}
+
+// Set default date range (last 7 days)
+document.addEventListener('DOMContentLoaded', () => {
+    const today = new Date();
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    document.getElementById('dateFromFilter').value = lastWeek.toISOString().split('T')[0];
+    document.getElementById('dateToFilter').value = today.toISOString().split('T')[0];
+    
+    loadAttendance();
+});
+</script>
+{% endblock %}

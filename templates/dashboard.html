@@ -1,387 +1,319 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Management Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            color: #333;
-        }
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 30px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .chart-container {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
-            transition: box-shadow 0.3s ease;
-        }
+{% extends 'base.html' %}
 
-        .chart-container:hover {
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-        }
-        .chart-title {
-            font-size: 1.3em;
-            font-weight: bold;
-            margin-bottom: 20px;
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-        .chart-wrapper {
-            position: relative;
-            height: 300px;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .stat-number {
-            font-size: 2.5em;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .stat-label {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        .controls {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .btn {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 0 10px;
-            font-size: 1em;
-        }
-        .btn:hover {
-            background: #2980b9;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📊 Employee Management Dashboard</h1>
-        <p>Real-time analytics and insights</p>
+{% block title %}Dashboard - Employee Management System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-chart-line"></i> Analytics Dashboard</h1>
+    <div>
+        <button class="btn btn-primary" onclick="refreshData()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button class="btn btn-success" onclick="exportData()">
+            <i class="fas fa-download"></i> Export
+        </button>
     </div>
-    
-    <div class="controls">
-        <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
-        <button class="btn" onclick="exportData()">📊 Export Report</button>
-    </div>
-    
-    <div id="stats-container" class="stats-grid"></div>
-    
-    <div class="dashboard">
-        <div class="chart-container">
-            <div class="chart-title">👥 Employees by Department</div>
-            <div class="chart-wrapper">
-                <canvas id="departmentChart"></canvas>
+</div>
+
+<!-- Statistics Cards -->
+<div id="stats-container" class="row mb-4"></div>
+
+<!-- Charts Grid -->
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Employees by Department</h5>
             </div>
-        </div>
-        
-        <div class="chart-container">
-            <div class="chart-title">📈 Employment Status</div>
-            <div class="chart-wrapper">
-                <canvas id="statusChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="chart-container">
-            <div class="chart-title">💰 Average Salary by Department</div>
-            <div class="chart-wrapper">
-                <canvas id="salaryChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="chart-container">
-            <div class="chart-title">📅 Monthly Attendance</div>
-            <div class="chart-wrapper">
-                <canvas id="attendanceChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // color palette for charts
-        const colors = {
-            primary: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'],
-            secondary: ['#5dade2', '#ec7063', '#58d68d', '#f7dc6f', '#bb8fce', '#76d7c4']
-        };
-
-        // mock data for demonstration purposes
-        // In a real application, this data would be fetched from an API
-        // or a database.
-        // Here we simulate the data structure that would typically be returned.
-        // This data should match the structure expected by the charts and stats cards.
-        const mockEmployeeData = {
-            total_employees: 156,
-            active_employees: 142,
-            performance_summary: {
-                total_reviews: 89,
-                average_rating: 4.2
-            },
-            employees_by_department: [
-                { department__name: 'Engineering', count: 45 },
-                { department__name: 'Sales', count: 32 },
-                { department__name: 'Marketing', count: 28 },
-                { department__name: 'HR', count: 18 },
-                { department__name: 'Finance', count: 15 },
-                { department__name: 'Operations', count: 18 }
-            ],
-            employment_status_distribution: [
-                { employment_status: 'Full-time', count: 120 },
-                { employment_status: 'Part-time', count: 22 },
-                { employment_status: 'Contract', count: 14 }
-            ],
-            salary_by_department: [
-                { department: 'Engineering', avg_salary: 95000 },
-                { department: 'Sales', avg_salary: 72000 },
-                { department: 'Marketing', avg_salary: 68000 },
-                { department: 'HR', avg_salary: 65000 },
-                { department: 'Finance', avg_salary: 78000 },
-                { department: 'Operations', avg_salary: 58000 }
-            ]
-        };
-
-        const mockAttendanceData = {
-            monthly_overview: [
-                { month: 'Jan', present: 2840, absent: 160 },
-                { month: 'Feb', present: 2650, absent: 180 },
-                { month: 'Mar', present: 2920, absent: 120 },
-                { month: 'Apr', present: 2780, absent: 140 },
-                { month: 'May', present: 2890, absent: 110 },
-                { month: 'Jun', present: 2850, absent: 130 }
-            ]
-        };
-
-        let charts = {};
-
-        //  loadDashboard 函数用于加载仪表板数据
-        async function loadDashboard() {
-            try {
-                // 
-                const employeeData = mockEmployeeData;
-                const attendanceData = mockAttendanceData;
-                
-                // create stats cards
-                createStatsCards(employeeData);
-                
-                // create charts
-                createDepartmentChart(employeeData.employees_by_department);
-                createStatusChart(employeeData.employment_status_distribution);
-                createSalaryChart(employeeData.salary_by_department);
-                createAttendanceChart(attendanceData.monthly_overview);
-                
-            } catch (error) {
-                console.error('Error loading dashboard:', error);
-            }
-        }
-
-        function createStatsCards(data) {
-            const statsContainer = document.getElementById('stats-container');
-            const stats = [
-                { number: data.total_employees, label: 'Total Employees' },
-                { number: data.active_employees, label: 'Active Employees' },
-                { number: data.performance_summary.total_reviews, label: 'Performance Reviews' },
-                { number: data.performance_summary.average_rating.toFixed(1), label: 'Avg Performance Rating' }
-            ];
-            
-            statsContainer.innerHTML = stats.map(stat => `
-                <div class="stat-card">
-                    <div class="stat-number">${stat.number}</div>
-                    <div class="stat-label">${stat.label}</div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="departmentChart"></canvas>
                 </div>
-            `).join('');
-        }
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Employment Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-dollar-sign"></i> Average Salary by Department</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="salaryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar"></i> Monthly Attendance</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="attendanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-        function createDepartmentChart(data) {
-            const ctx = document.getElementById('departmentChart').getContext('2d');
-            if (charts.departmentChart) {
-                charts.departmentChart.destroy();
-            }
-            charts.departmentChart = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: data.map(item => item.department__name),
-                    datasets: [{
-                        data: data.map(item => item.count),
-                        backgroundColor: colors.primary
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom' }
-                    }
-                }
-            });
-        }
+{% block extra_js %}
+<script>
+// 颜色配置
+const colors = {
+    primary: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'],
+    secondary: ['#5dade2', '#ec7063', '#58d68d', '#f7dc6f', '#bb8fce', '#76d7c4']
+};
 
-        function createStatusChart(data) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (charts.statusChart) {
-                charts.statusChart.destroy();
-            }
-            charts.statusChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: data.map(item => item.employment_status),
-                    datasets: [{
-                        data: data.map(item => item.count),
-                        backgroundColor: colors.secondary
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom' }
-                    }
-                }
-            });
-        }
+// 获取数据并创建图表
+async function loadDashboard() {
+    try {
+        showLoading(true);
+        
+        // 获取员工分析数据
+        console.log('Loading employee analytics...');
+        const employeeResponse = await fetch('/api/analytics/');
+        const employeeData = await employeeResponse.json();
+        console.log('Employee data:', employeeData);
+        
+        // 获取考勤分析数据 - 修改API URL
+        console.log('Loading attendance analytics...');
+        const attendanceResponse = await fetch('/api/attendance-analytics/');
+        const attendanceData = await attendanceResponse.json();
+        console.log('Attendance data:', attendanceData);
+        
+        // 创建统计卡片
+        createStatsCards(employeeData);
+        
+        // 创建图表
+        createDepartmentChart(employeeData.employees_by_department || []);
+        createStatusChart(employeeData.employment_status_distribution || []);
+        createSalaryChart(employeeData.salary_by_department || []);
+        
+        // 修复考勤图表数据传递
+        const attendanceChartData = attendanceData.monthly_overview || [];
+        console.log('Attendance chart data:', attendanceChartData);
+        createAttendanceChart(attendanceChartData);
+        
+        showLoading(false);
+        
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        showAlert('Error loading dashboard data: ' + error.message, 'danger');
+        showLoading(false);
+    }
+}
 
-        function createSalaryChart(data) {
-            const ctx = document.getElementById('salaryChart').getContext('2d');
-            if (charts.salaryChart) {
-                charts.salaryChart.destroy();
+function createStatsCards(data) {
+    const statsContainer = document.getElementById('stats-container');
+    const stats = [
+        { number: data.total_employees, label: 'Total Employees', icon: 'fas fa-users', color: 'primary' },
+        { number: data.active_employees, label: 'Active Employees', icon: 'fas fa-user-check', color: 'success' },
+        { number: data.performance_summary.total_reviews, label: 'Performance Reviews', icon: 'fas fa-star', color: 'warning' },
+        { number: data.performance_summary.average_rating.toFixed(1), label: 'Avg Rating', icon: 'fas fa-chart-line', color: 'info' }
+    ];
+    
+    statsContainer.innerHTML = stats.map(stat => `
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card bg-${stat.color}">
+                <div class="stat-number">${stat.number}</div>
+                <div class="stat-label">
+                    <i class="${stat.icon}"></i> ${stat.label}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function createDepartmentChart(data) {
+    const ctx = document.getElementById('departmentChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: data.map(item => item.department__name),
+            datasets: [{
+                data: data.map(item => item.count),
+                backgroundColor: colors.primary
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
             }
-            charts.salaryChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(item => item.department),
-                    datasets: [{
-                        label: 'Average Salary ($)',
-                        data: data.map(item => item.avg_salary),
-                        backgroundColor: colors.primary[0]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toLocaleString();
-                                }
-                            }
+        }
+    });
+}
+
+function createStatusChart(data) {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.map(item => item.employment_status),
+            datasets: [{
+                data: data.map(item => item.count),
+                backgroundColor: colors.secondary
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function createSalaryChart(data) {
+    const ctx = document.getElementById('salaryChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(item => item.department),
+            datasets: [{
+                label: 'Average Salary ($)',
+                data: data.map(item => item.avg_salary),
+                backgroundColor: colors.primary[0]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
                         }
                     }
                 }
-            });
-        }
-
-        function createAttendanceChart(data) {
-            const ctx = document.getElementById('attendanceChart').getContext('2d');
-            if (charts.attendanceChart) {
-                charts.attendanceChart.destroy();
             }
-            charts.attendanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map(item => item.month),
-                    datasets: [
-                        {
-                            label: 'Present',
-                            data: data.map(item => item.present),
-                            borderColor: colors.primary[2],
-                            backgroundColor: colors.primary[2] + '20',
-                            tension: 0.4,
-                            fill: true
-                        },
-                        {
-                            label: 'Absent',
-                            data: data.map(item => item.absent),
-                            borderColor: colors.primary[1],
-                            backgroundColor: colors.primary[1] + '20',
-                            tension: 0.4,
-                            fill: true
-                        }
-                    ]
+        }
+    });
+}
+
+function createAttendanceChart(data) {
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    
+    // 检查数据是否存在
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        // 如果没有数据，显示空图表
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#666";
+        ctx.textAlign = "center";
+        ctx.fillText("No attendance data available", ctx.canvas.width/2, ctx.canvas.height/2);
+        return;
+    }
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(item => item.month || 'Unknown'),
+            datasets: [
+                {
+                    label: 'Present',
+                    data: data.map(item => item.present || 0),
+                    borderColor: colors.primary[2],
+                    backgroundColor: colors.primary[2] + '20',
+                    tension: 0.4,
+                    fill: true
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'top' } },
-                    scales: { y: { beginAtZero: true } }
+                {
+                    label: 'Absent',
+                    data: data.map(item => item.absent || 0),
+                    borderColor: colors.primary[1],
+                    backgroundColor: colors.primary[1] + '20',
+                    tension: 0.4,
+                    fill: true
                 }
-            });
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { position: 'top' },
+                title: {
+                    display: false
+                }
+            },
+            scales: { 
+                y: { beginAtZero: true } 
+            }
         }
+    });
+}
 
-        // automatically refresh the dashboard every 5 minutes
-        setInterval(() => {
-            loadDashboard();
-        }, 300000); // every 5 minutes
+function refreshData() {
+    loadDashboard();
+    showAlert('Data refreshed successfully!', 'success');
+}
 
-        // Add refresh button functionality
-        function refreshData() {
-            document.getElementById('loadingSpinner').style.display = 'block';
-            loadDashboard().then(() => {
-                document.getElementById('loadingSpinner').style.display = 'none';
-                showNotification('Data refreshed successfully!');
-            });
-        }
-
-        // Export data function
-        function exportData() {
-            const data = {
-                generated_at: new Date().toISOString(),
-                employee_data: mockEmployeeData,
-                attendance_data: mockAttendanceData
-            };
-            
+function exportData() {
+    // 简单的JSON导出
+    fetch('/api/analytics/')
+        .then(response => response.json())
+        .then(data => {
             const dataStr = JSON.stringify(data, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            
-            const exportFileDefaultName = `employee_dashboard_${new Date().toISOString().split('T')[0]}.json`;
+            const exportFileDefaultName = `analytics_${new Date().toISOString().split('T')[0]}.json`;
             
             const linkElement = document.createElement('a');
             linkElement.setAttribute('href', dataUri);
             linkElement.setAttribute('download', exportFileDefaultName);
             linkElement.click();
-        }
+        });
+}
 
-        // Initialize the dashboard when the document is ready
-        document.addEventListener('DOMContentLoaded', loadDashboard);
-    </script>
-</body>
-</html>
+function showLoading(show) {
+    // 简单的loading指示器
+    const charts = ['departmentChart', 'statusChart', 'salaryChart', 'attendanceChart'];
+    charts.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.style.opacity = show ? '0.5' : '1';
+        }
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('h1'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 3000);
+}
+
+// 页面加载完成后初始化仪表板
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+{% endblock %}

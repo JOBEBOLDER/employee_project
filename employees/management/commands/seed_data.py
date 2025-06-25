@@ -12,32 +12,15 @@ from attendance.models import Attendance, LeaveRequest
 fake = Faker()
 
 class Command(BaseCommand):
-    """Django management command to seed database with realistic fake data.
-    
-    Generates departments, employees, performance reviews, and attendance records
-    with proper relationships and constraints. Ensures data consistency by
-    handling unique constraints and date validations.
-    
-    Usage:
-        python manage.py seed_data --employees 50
-    """
+    """Django management command to seed database with realistic fake data."""
     help = 'Seed database with fake data'
 
     def add_arguments(self, parser):
-        """Adds command line arguments.
-        
-        Args:
-            parser: Argument parser instance
-        """
+        """Adds command line arguments."""
         parser.add_argument('--employees', type=int, default=30, help='Number of employees to create')
 
     def handle(self, *args, **options):
-        """Main command handler that orchestrates data generation.
-        
-        Args:
-            args: Positional arguments
-            options: Command options dictionary
-        """
+        """Main command handler that orchestrates data generation."""
         num_employees = options['employees']
         
         self.stdout.write('Creating departments...')
@@ -55,11 +38,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Successfully created {num_employees} employees with related data!'))
 
     def create_departments(self):
-        """Creates predefined departments with descriptions.
-        
-        Returns:
-            List of Department objects created or retrieved
-        """
+        """Creates predefined departments with descriptions."""
         departments_data = [
             {'name': 'Engineering', 'description': 'Software development and technical operations'},
             {'name': 'Human Resources', 'description': 'HR and employee management'},
@@ -79,15 +58,7 @@ class Command(BaseCommand):
         return departments
 
     def create_employees(self, departments, count):
-        """Creates specified number of employees with realistic data.
-        
-        Args:
-            departments: List of Department objects to assign employees to
-            count: Number of employees to create
-            
-        Returns:
-            List of Employee objects created
-        """
+        """Creates specified number of employees with realistic data."""
         employees = []
         for i in range(count):
             department = random.choice(departments)
@@ -111,14 +82,7 @@ class Command(BaseCommand):
         return employees
 
     def create_performance_reviews(self, employees):
-        """Creates performance reviews for employees with unique date constraints.
-        
-        Ensures each employee has unique review dates by tracking used dates
-        and retrying generation if conflicts occur.
-        
-        Args:
-            employees: List of Employee objects to create reviews for
-        """
+        """Creates performance reviews for employees with unique date constraints."""
         for employee in employees:
             num_reviews = random.randint(1, 3)
             used_dates = set()
@@ -144,30 +108,90 @@ class Command(BaseCommand):
                 )
 
     def create_attendance_records(self, employees):
-        """Creates attendance records for the last 30 days for active employees.
-        
-        Generates weekday attendance records with realistic status distribution
-        and check-in/check-out times.
-        
-        Args:
-            employees: List of Employee objects to create attendance for
-        """
+        """Creates attendance records for the last 6 months for active employees."""
         end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=30)
+        start_date = end_date - timedelta(days=180)  # 6个月的数据
+        
+        self.stdout.write(f'Creating attendance records from {start_date} to {end_date}...')
         
         current_date = start_date
+        records_created = 0
+        
         while current_date <= end_date:
-            if current_date.weekday() < 5:  # Weekdays only
+            if current_date.weekday() < 5:  # 只在工作日
                 for employee in employees:
-                    if employee.is_active and random.random() < 0.9:
-                        Attendance.objects.create(
-                            employee=employee,
-                            date=current_date,
-                            status=random.choices(
-                                ['PRESENT', 'ABSENT', 'LATE', 'SICK_LEAVE'],
-                                weights=[80, 10, 8, 2]
-                            )[0],
-                            check_in_time=f"{random.randint(8,9)}:{random.randint(0,59):02d}",
-                            check_out_time=f"{random.randint(17,19)}:{random.randint(0,59):02d}",
-                        )
+                    if employee.is_active and random.random() < 0.95:  # 95%的员工有考勤记录
+                        # 根据月份调整出勤率
+                        month = current_date.month
+                        if month in [12, 1]:  # 假期月份
+                            status_weights = [70, 15, 10, 5]
+                        elif month in [6, 7, 8]:  # 夏季
+                            status_weights = [80, 8, 10, 2]
+                        else:  # 正常月份
+                            status_weights = [85, 8, 5, 2]
+                        
+                        status = random.choices(
+                            ['PRESENT', 'ABSENT', 'LATE', 'SICK_LEAVE'],
+                            weights=status_weights
+                        )[0]
+                        
+                        # 为PRESENT和LATE状态添加签到签退时间
+                        check_in_time = None
+                        check_out_time = None
+                        
+                        if status in ['PRESENT', 'LATE']:
+                            if status == 'LATE':
+                                check_in_hour = random.randint(9, 11)  # 迟到
+                            else:
+                                check_in_hour = random.randint(8, 9)   # 正常
+                            
+                            check_in_minute = random.randint(0, 59)
+                            check_in_time = f"{check_in_hour}:{check_in_minute:02d}"
+                            
+                            # 签退时间（工作8-9小时）
+                            work_hours = random.randint(8, 9)
+                            check_out_hour = check_in_hour + work_hours
+                            check_out_minute = random.randint(0, 59)
+                            
+                            if check_out_hour >= 24:
+                                check_out_hour -= 24
+                            check_out_time = f"{check_out_hour}:{check_out_minute:02d}"
+                        
+                        try:
+                            Attendance.objects.create(
+                                employee=employee,
+                                date=current_date,
+                                status=status,
+                                check_in_time=check_in_time,
+                                check_out_time=check_out_time,
+                                notes=f"Auto-generated record"
+                            )
+                            records_created += 1
+                        except Exception as e:
+                            # 如果有重复记录，跳过
+                            pass
+            
             current_date += timedelta(days=1)
+        
+        self.stdout.write(f'Created {records_created} attendance records.')
+
+    def create_leave_requests(self, employees):
+        """Creates sample leave requests."""
+        for employee in employees:
+            if employee.is_active and random.random() < 0.3:  # 30% 员工有请假记录
+                num_requests = random.randint(1, 2)
+                
+                for _ in range(num_requests):
+                    start_date = fake.date_between(start_date='-60d', end_date='+30d')
+                    duration = random.randint(1, 5)
+                    end_date = start_date + timedelta(days=duration)
+                    
+                    LeaveRequest.objects.create(
+                        employee=employee,
+                        leave_type=random.choice(['SICK', 'VACATION', 'PERSONAL', 'EMERGENCY']),
+                        start_date=start_date,
+                        end_date=end_date,
+                        reason=fake.sentence(),
+                        status=random.choice(['PENDING', 'APPROVED', 'DENIED']),  # 更多拒绝的
+                        approved_by=fake.name() if random.random() < 0.8 else ''
+                    )

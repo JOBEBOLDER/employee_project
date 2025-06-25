@@ -238,3 +238,23 @@ class DashboardView(APIView):
     def get(self, request):
         """Renders the dashboard HTML template."""
         return render(request, 'dashboard.html')
+    
+from django.shortcuts import render
+
+class EmployeeListView(APIView):
+    """Employee list view with Django template."""
+    
+    def get(self, request):
+        return render(request, 'employee_list.html')
+
+class DepartmentListView(APIView):
+    """Department list view with Django template."""
+    
+    def get(self, request):
+        return render(request, 'department_list.html')
+
+class AttendanceListView(APIView):
+    """Attendance list view with Django template."""
+    
+    def get(self, request):
+        return render(request, 'attendance_list.html')
