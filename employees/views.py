@@ -10,13 +10,17 @@ from .models import Employee, Performance
 from .serializers import EmployeeListSerializer, EmployeeDetailSerializer, PerformanceSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    """
-    Employee Management ViewSet 
-    Provides complete employee CRUD operations and customization features
+    """Employee management ViewSet providing CRUD operations and custom actions.
+    
+    Features:
+    - Dynamic serializer selection based on action type
+    - Advanced filtering, searching, and sorting capabilities
+    - Custom actions for employee activation/deactivation
+    - Employee profile endpoint with performance and attendance stats
     """
     queryset = Employee.objects.select_related('department').all()
     
-    # 过滤、搜索、排序配置
+    # Filter, search, and ordering configuration
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['department', 'employment_status', 'is_active', 'gender']
     search_fields = ['first_name', 'last_name', 'email', 'employee_id', 'position']
@@ -24,16 +28,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     ordering = ['first_name', 'last_name']
 
     def get_serializer_class(self):
-        """根据操作类型返回不同的序列化器"""
+        """Returns appropriate serializer based on action type.
+        
+        Returns:
+            EmployeeListSerializer for list actions
+            EmployeeDetailSerializer for all other actions
+        """
         if self.action == 'list':
             return EmployeeListSerializer
         return EmployeeDetailSerializer
 
     def get_queryset(self):
-        """支持日期范围过滤"""
+        """Returns filtered queryset supporting date range filtering.
+        
+        Query Parameters:
+            date_from: Filter employees joined on or after this date
+            date_to: Filter employees joined on or before this date
+        """
         queryset = Employee.objects.select_related('department').all()
         
-        # 按入职日期范围过滤
+        # Filter by joining date range
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         
@@ -46,7 +60,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
-        """激活员工"""
+        """Activates an employee by setting status to active.
+        
+        Args:
+            request: HTTP request object
+            pk: Employee primary key
+            
+        Returns:
+            Response with success message and updated employee data
+        """
         employee = self.get_object()
         employee.is_active = True
         employee.employment_status = 'ACTIVE'
@@ -60,7 +82,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
-        """停用员工"""
+        """Deactivates an employee by setting status to inactive.
+        
+        Args:
+            request: HTTP request object
+            pk: Employee primary key
+            
+        Returns:
+            Response with success message and updated employee data
+        """
         employee = self.get_object()
         employee.is_active = False
         employee.employment_status = 'INACTIVE'
@@ -74,13 +104,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def profile(self, request, pk=None):
-        """获取员工详细档案，包括绩效和考勤统计"""
+        """Returns comprehensive employee profile with statistics.
+        
+        Includes:
+        - Basic employee information
+        - Recent performance reviews (last 5)
+        - Attendance statistics and rates
+        
+        Args:
+            request: HTTP request object
+            pk: Employee primary key
+            
+        Returns:
+            Response containing employee profile data
+        """
         employee = self.get_object()
         
-        # 获取最近的绩效评估
+        # Get recent performance reviews
         recent_performances = employee.performances.all()[:5]
         
-        # 获取考勤统计
+        # Calculate attendance statistics
         total_attendance = employee.attendances.count()
         present_days = employee.attendances.filter(status__in=['PRESENT', 'LATE']).count()
         attendance_rate = (present_days / total_attendance * 100) if total_attendance > 0 else 0
@@ -98,9 +141,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response(profile_data)
 
 class PerformanceViewSet(viewsets.ModelViewSet):
-    """
-    Performance Appraisal Management ViewSet
-    """
+    """Performance review management ViewSet with filtering capabilities."""
     queryset = Performance.objects.select_related('employee').all()
     serializer_class = PerformanceSerializer
     
@@ -111,7 +152,12 @@ class PerformanceViewSet(viewsets.ModelViewSet):
     ordering = ['-review_date']
 
     def get_queryset(self):
-        """支持评估日期范围过滤"""
+        """Returns filtered queryset supporting review date range filtering.
+        
+        Query Parameters:
+            date_from: Filter reviews on or after this date
+            date_to: Filter reviews on or before this date
+        """
         queryset = Performance.objects.select_related('employee').all()
         
         date_from = self.request.query_params.get('date_from')
@@ -125,31 +171,41 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         return queryset
 
 class EmployeeAnalyticsView(APIView):
-    """
-    员工数据分析API
-    """
+    """Employee analytics API providing statistical insights."""
+    
     def get(self, request):
-        """获取员工统计分析数据"""
-        # 基础统计
+        """Returns comprehensive employee analytics data.
+        
+        Includes:
+        - Employee count statistics
+        - Department distribution
+        - Employment status breakdown
+        - Salary analytics by department
+        - Performance review summary
+        
+        Returns:
+            Response containing analytics data
+        """
+        # Basic statistics
         total_employees = Employee.objects.count()
         active_employees = Employee.objects.filter(is_active=True).count()
         
-        # 按部门统计员工
+        # Employees by department
         employees_by_dept = Employee.objects.filter(is_active=True).values(
             'department__name'
         ).annotate(count=Count('id')).order_by('-count')
         
-        # 按状态统计员工
+        # Employment status distribution
         status_distribution = Employee.objects.values(
             'employment_status'
         ).annotate(count=Count('id')).order_by('-count')
         
-        # 平均工资按部门
+        # Average salary by department
         salary_by_dept = Employee.objects.filter(is_active=True).values(
             'department__name'
         ).annotate(avg_salary=Avg('salary')).order_by('-avg_salary')
         
-        # 绩效概览
+        # Performance overview
         total_reviews = Performance.objects.count()
         average_rating = Performance.objects.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
         
@@ -177,8 +233,8 @@ class EmployeeAnalyticsView(APIView):
 from django.shortcuts import render
 
 class DashboardView(APIView):
-    """
-    仪表板页面视图
-    """
+    """Dashboard view rendering the analytics visualization page."""
+    
     def get(self, request):
+        """Renders the dashboard HTML template."""
         return render(request, 'dashboard.html')

@@ -17,8 +17,13 @@ from .serializers import (
 )
 
 class AttendanceViewSet(viewsets.ModelViewSet):
-    """
-    考勤管理ViewSet
+    """Attendance management ViewSet with advanced filtering and bulk operations.
+    
+    Features:
+    - Date range and monthly filtering
+    - Bulk attendance record creation
+    - Individual employee attendance summaries
+    - Dynamic serializer selection
     """
     queryset = Attendance.objects.select_related('employee').all()
     
@@ -29,16 +34,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     ordering = ['-date']
 
     def get_serializer_class(self):
-        """根据操作类型返回不同的序列化器"""
+        """Returns appropriate serializer based on action type."""
         if self.action == 'list':
             return AttendanceListSerializer
         return AttendanceDetailSerializer
 
     def get_queryset(self):
-        """支持日期范围和月份过滤"""
+        """Returns filtered queryset supporting date range and monthly filtering.
+        
+        Query Parameters:
+            date_from: Filter records on or after this date
+            date_to: Filter records on or before this date
+            month: Filter records for specific month (1-12)
+            year: Filter records for specific year
+        """
         queryset = Attendance.objects.select_related('employee').all()
         
-        # 日期范围过滤
+        # Date range filtering
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         
@@ -47,7 +59,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if date_to:
             queryset = queryset.filter(date__lte=date_to)
         
-        # 月份过滤
+        # Monthly filtering
         month = self.request.query_params.get('month')
         year = self.request.query_params.get('year')
         
@@ -60,7 +72,17 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_create(self, request):
-        """批量创建考勤记录"""
+        """Creates multiple attendance records in a single request.
+        
+        Processes array of attendance records, validates each one, and returns
+        summary of successful creations and validation errors.
+        
+        Request Body:
+            attendance_records: Array of attendance record objects
+            
+        Returns:
+            Response with creation summary and error details
+        """
         attendance_records = request.data.get('attendance_records', [])
         
         if not attendance_records:
@@ -91,7 +113,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """获取考勤汇总统计"""
+        """Returns attendance summary statistics for a specific employee.
+        
+        Calculates attendance rates, working hours, and presence statistics
+        for the specified time period.
+        
+        Query Parameters:
+            employee_id: Required employee ID
+            month: Optional month filter (1-12)
+            year: Optional year filter
+            
+        Returns:
+            Response with attendance summary statistics
+        """
         employee_id = request.query_params.get('employee_id')
         month = request.query_params.get('month')
         year = request.query_params.get('year')
@@ -109,7 +143,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         elif year:
             queryset = queryset.filter(date__year=year)
         
-        # 计算统计数据
+        # Calculate statistics
         total_days = queryset.count()
         present_days = queryset.filter(status__in=['PRESENT', 'LATE']).count()
         absent_days = queryset.filter(status='ABSENT').count()
@@ -117,7 +151,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         attendance_rate = (present_days / total_days * 100) if total_days > 0 else 0
         
-        # 计算平均工作时间
+        # Calculate average working hours
         working_records = queryset.exclude(
             Q(check_in_time__isnull=True) | Q(check_out_time__isnull=True)
         )
@@ -128,7 +162,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             if working_records.count() > 0 else 0
         )
         
-        # 获取员工姓名
+        # Get employee name
         employee_name = "Unknown"
         if queryset.exists():
             employee_name = queryset.first().employee.full_name
@@ -145,8 +179,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         })
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
-    """
-    请假申请管理ViewSet
+    """Leave request management ViewSet with approval workflow.
+    
+    Features:
+    - Leave request CRUD operations
+    - Approval and rejection actions
+    - Date range filtering
+    - Status-based filtering
     """
     queryset = LeaveRequest.objects.select_related('employee').all()
     
@@ -157,13 +196,18 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_serializer_class(self):
-        """根据操作类型返回不同的序列化器"""
+        """Returns appropriate serializer based on action type."""
         if self.action == 'list':
             return LeaveRequestListSerializer
         return LeaveRequestDetailSerializer
 
     def get_queryset(self):
-        """支持日期范围过滤"""
+        """Returns filtered queryset supporting date range filtering.
+        
+        Query Parameters:
+            date_from: Filter requests starting on or after this date
+            date_to: Filter requests ending on or before this date
+        """
         queryset = LeaveRequest.objects.select_related('employee').all()
         
         date_from = self.request.query_params.get('date_from')
@@ -178,7 +222,15 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """批准请假申请"""
+        """Approves a pending leave request.
+        
+        Args:
+            request: HTTP request object
+            pk: Leave request primary key
+            
+        Returns:
+            Response with success message and updated request data
+        """
         leave_request = self.get_object()
         
         if leave_request.status != 'PENDING':
@@ -199,7 +251,15 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """拒绝请假申请"""
+        """Rejects a pending leave request.
+        
+        Args:
+            request: HTTP request object
+            pk: Leave request primary key
+            
+        Returns:
+            Response with success message and updated request data
+        """
         leave_request = self.get_object()
         
         if leave_request.status != 'PENDING':
@@ -219,11 +279,26 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         })
 
 class AttendanceAnalyticsView(APIView):
+    """Attendance analytics API providing comprehensive statistical insights.
+    
+    Generates attendance reports including monthly overviews, department-wise
+    statistics, and working hour analytics for specified time periods.
     """
-    考勤数据分析API
-    """
+    
     def get(self, request):
-        """获取考勤分析数据"""
+        """Returns comprehensive attendance analytics data.
+        
+        Query Parameters:
+            month: Optional month filter (1-12)
+            year: Optional year filter (defaults to current year)
+            
+        Returns:
+            Response containing attendance analytics including:
+            - Monthly attendance overview
+            - Status distribution
+            - Department-wise attendance rates
+            - Average working hours
+        """
         month = request.query_params.get('month')
         year = request.query_params.get('year', timezone.now().year)
         
@@ -234,7 +309,7 @@ class AttendanceAnalyticsView(APIView):
         elif year:
             queryset = queryset.filter(date__year=year)
         
-        # 月度概览
+        # Monthly overview
         monthly_data = defaultdict(lambda: {'present': 0, 'absent': 0, 'late': 0})
         
         for record in queryset.filter(date__year=year):
@@ -256,14 +331,14 @@ class AttendanceAnalyticsView(APIView):
             for month_name, data in monthly_data.items()
         ]
         
-        # 按状态统计
+        # Status distribution
         status_counts = queryset.values('status').annotate(count=Count('id')).order_by('-count')
         attendance_by_status = [
             {'status': item['status'], 'count': item['count']}
             for item in status_counts
         ]
         
-        # 部门出勤率
+        # Department-wise attendance rates
         dept_stats = {}
         for record in queryset:
             dept_name = record.employee.department.name
@@ -284,7 +359,7 @@ class AttendanceAnalyticsView(APIView):
             for dept_name, stats in dept_stats.items()
         ]
         
-        # 平均工作时间
+        # Average working hours calculation
         working_records = queryset.exclude(
             Q(check_in_time__isnull=True) | Q(check_out_time__isnull=True)
         )

@@ -1,12 +1,11 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from django.core.validators import MinLengthValidator
 
 class Department(models.Model):
-    """
-    Department model to store department information
+    """Department model representing organizational units within the company.
+    
+    Manages department information including name validation, employee counting,
+    and active status tracking. Auto-formats department names to title case.
     """
     name = models.CharField(
         max_length=100, 
@@ -33,15 +32,23 @@ class Department(models.Model):
         verbose_name_plural = 'Departments'
 
     def __str__(self):
+        """String representation of the department."""
         return self.name
 
     @property
     def employee_count(self):
-        """Return the number of employees in this department"""
+        """Returns the number of active employees in this department.
+        
+        Returns:
+            int: Count of active employees assigned to this department
+        """
         return self.employees.filter(is_active=True).count()
 
     def save(self, *args, **kwargs):
-        """Override save to ensure name is properly formatted"""
+        """Custom save method to format department name to title case.
+        
+        Strips whitespace and converts name to title case before saving.
+        """
         if self.name:
             self.name = self.name.strip().title()
         super().save(*args, **kwargs)

@@ -4,8 +4,15 @@ from django.utils import timezone
 from departments.models import Department
 
 class Employee(models.Model):
-    """
-    Employee model to store employee information
+    """Employee model storing comprehensive employee information.
+    
+    This model handles all employee-related data including personal information,
+    employment details, and relationships with departments. Auto-generates
+    unique employee IDs based on department codes.
+    
+    Attributes:
+        GENDER_CHOICES: Valid gender options for employees
+        EMPLOYMENT_STATUS_CHOICES: Valid employment status options
     """
     GENDER_CHOICES = [
         ('M', 'Male'),
@@ -75,13 +82,20 @@ class Employee(models.Model):
         verbose_name_plural = 'Employees'
 
     def __str__(self):
+        """String representation of the employee."""
         return f"{self.first_name} {self.last_name} ({self.employee_id})"
 
     @property
     def full_name(self):
+        """Returns the employee's full name."""
         return f"{self.first_name} {self.last_name}"
 
     def save(self, *args, **kwargs):
+        """Custom save method to auto-generate employee ID and format names.
+        
+        Generates employee ID using department code + sequential number.
+        Formats first and last names to title case.
+        """
         if not self.employee_id:
             # Generate employee ID based on department
             dept_code = self.department.name[:3].upper() if self.department else "EMP"
@@ -97,8 +111,13 @@ class Employee(models.Model):
 
 
 class Performance(models.Model):
-    """
-    Performance model to track employee performance reviews
+    """Performance review model for tracking employee evaluations.
+    
+    Stores performance ratings, review dates, and feedback with unique
+    constraint ensuring one review per employee per date.
+    
+    Attributes:
+        RATING_CHOICES: Valid rating options (1-5 scale)
     """
     RATING_CHOICES = [
         (1, 'Poor'),
@@ -122,4 +141,5 @@ class Performance(models.Model):
         unique_together = ['employee', 'review_date']
 
     def __str__(self):
+        """String representation of the performance review."""
         return f"{self.employee.full_name} - {self.get_rating_display()} ({self.review_date})"

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Attendance, LeaveRequest
 
 class AttendanceListSerializer(serializers.ModelSerializer):
-    """考勤列表序列化器"""
+    """Simplified attendance serializer for list views with essential information."""
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     working_hours = serializers.ReadOnlyField()
@@ -15,7 +15,7 @@ class AttendanceListSerializer(serializers.ModelSerializer):
         ]
 
 class AttendanceDetailSerializer(serializers.ModelSerializer):
-    """考勤详情序列化器"""
+    """Comprehensive attendance serializer for CRUD operations with validation."""
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     working_hours = serializers.ReadOnlyField()
@@ -30,18 +30,33 @@ class AttendanceDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'working_hours']
 
     def validate(self, data):
-        """验证考勤数据"""
-        # 检查员工是否活跃
+        """Validates attendance data for business rules compliance.
+        
+        Checks:
+        - Employee must be active
+        - Check-out time validation for overnight shifts
+        - Working hours must not exceed 16 hours per day
+        
+        Args:
+            data: Serializer data dictionary
+            
+        Returns:
+            dict: Validated data
+            
+        Raises:
+            ValidationError: If validation rules are violated
+        """
+        # Check if employee is active
         employee = data.get('employee')
         if employee and not employee.is_active:
             raise serializers.ValidationError("Cannot create attendance for inactive employee.")
             
-        # 验证打卡时间
+        # Validate check-in/out times
         check_in = data.get('check_in_time')
         check_out = data.get('check_out_time')
         
         if check_in and check_out and check_out <= check_in:
-            # 允许跨夜班
+            # Allow overnight shifts
             from datetime import datetime, timedelta
             date = data.get('date')
             check_in_datetime = datetime.combine(date, check_in)
@@ -50,7 +65,7 @@ class AttendanceDetailSerializer(serializers.ModelSerializer):
             if check_out_datetime <= check_in_datetime:
                 check_out_datetime += timedelta(days=1)
                 
-            # 验证合理工作时间 (最多16小时)
+            # Validate reasonable working hours (max 16 hours)
             working_duration = check_out_datetime - check_in_datetime
             if working_duration.total_seconds() > 16 * 3600:
                 raise serializers.ValidationError("Working hours cannot exceed 16 hours per day.")
@@ -58,7 +73,7 @@ class AttendanceDetailSerializer(serializers.ModelSerializer):
         return data
 
 class LeaveRequestListSerializer(serializers.ModelSerializer):
-    """请假申请列表序列化器"""
+    """Simplified leave request serializer for list views."""
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     leave_type_display = serializers.CharField(source='get_leave_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -72,7 +87,7 @@ class LeaveRequestListSerializer(serializers.ModelSerializer):
         ]
 
 class LeaveRequestDetailSerializer(serializers.ModelSerializer):
-    """请假申请详情序列化器"""
+    """Comprehensive leave request serializer with overlap detection validation."""
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     leave_type_display = serializers.CharField(source='get_leave_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -88,20 +103,35 @@ class LeaveRequestDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'duration_days']
 
     def validate(self, data):
-        """验证请假申请数据"""
-        # 检查员工是否活跃
+        """Validates leave request data for business rules compliance.
+        
+        Checks:
+        - Employee must be active
+        - End date must be after or equal to start date
+        - No overlapping leave requests for the same employee
+        
+        Args:
+            data: Serializer data dictionary
+            
+        Returns:
+            dict: Validated data
+            
+        Raises:
+            ValidationError: If validation rules are violated
+        """
+        # Check if employee is active
         employee = data.get('employee')
         if employee and not employee.is_active:
             raise serializers.ValidationError("Cannot create leave request for inactive employee.")
             
-        # 验证日期
+        # Validate dates
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         
         if start_date and end_date and end_date < start_date:
             raise serializers.ValidationError("End date cannot be before start date.")
             
-        # 检查重叠的请假申请
+        # Check for overlapping leave requests
         if employee and start_date and end_date:
             overlapping_requests = LeaveRequest.objects.filter(
                 employee=employee,

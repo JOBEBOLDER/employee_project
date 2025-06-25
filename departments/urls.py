@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 
-# 创建路由器
+# Create router for department endpoints
 router = DefaultRouter()
 router.register(r'departments', views.DepartmentViewSet)
 

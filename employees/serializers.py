@@ -3,7 +3,11 @@ from .models import Employee, Performance
 from departments.serializers import DepartmentSerializer
 
 class EmployeeListSerializer(serializers.ModelSerializer):
-    """简化版员工序列化器，用于列表显示"""
+    """Simplified employee serializer for list views.
+    
+    Provides essential employee information optimized for list display
+    with minimal data transfer.
+    """
     full_name = serializers.ReadOnlyField()
     department_name = serializers.CharField(source='department.name', read_only=True)
     
@@ -12,7 +16,11 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         fields = ['id', 'employee_id', 'full_name', 'email', 'department_name', 'position', 'employment_status']
 
 class EmployeeDetailSerializer(serializers.ModelSerializer):
-    """详细版员工序列化器，用于详情和创建/更新"""
+    """Comprehensive employee serializer for detail views and CRUD operations.
+    
+    Includes complete employee information with nested department details
+    and computed fields. Provides validation for email uniqueness and salary.
+    """
     full_name = serializers.ReadOnlyField()
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.IntegerField(write_only=True)
@@ -30,19 +38,39 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee_id', 'created_at', 'updated_at']
 
     def validate_email(self, value):
-        """验证邮箱唯一性"""
+        """Validates email uniqueness across all employees.
+        
+        Args:
+            value: Email address to validate
+            
+        Returns:
+            Validated email address
+            
+        Raises:
+            ValidationError: If email already exists for another employee
+        """
         if Employee.objects.filter(email=value).exclude(pk=self.instance.pk if self.instance else None).exists():
             raise serializers.ValidationError("Employee with this email already exists.")
         return value
 
     def validate_salary(self, value):
-        """验证工资"""
+        """Validates salary is non-negative.
+        
+        Args:
+            value: Salary amount to validate
+            
+        Returns:
+            Validated salary amount
+            
+        Raises:
+            ValidationError: If salary is negative
+        """
         if value < 0:
             raise serializers.ValidationError("Salary cannot be negative.")
         return value
 
 class PerformanceSerializer(serializers.ModelSerializer):
-    """绩效评估序列化器"""
+    """Performance review serializer with employee information and validation."""
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     rating_display = serializers.CharField(source='get_rating_display', read_only=True)
     
@@ -55,7 +83,17 @@ class PerformanceSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
     def validate_rating(self, value):
-        """验证评分范围"""
+        """Validates rating is within acceptable range (1-5).
+        
+        Args:
+            value: Rating value to validate
+            
+        Returns:
+            Validated rating value
+            
+        Raises:
+            ValidationError: If rating is outside 1-5 range
+        """
         if value < 1 or value > 5:
             raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value

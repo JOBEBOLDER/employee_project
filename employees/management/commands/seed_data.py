@@ -12,12 +12,32 @@ from attendance.models import Attendance, LeaveRequest
 fake = Faker()
 
 class Command(BaseCommand):
+    """Django management command to seed database with realistic fake data.
+    
+    Generates departments, employees, performance reviews, and attendance records
+    with proper relationships and constraints. Ensures data consistency by
+    handling unique constraints and date validations.
+    
+    Usage:
+        python manage.py seed_data --employees 50
+    """
     help = 'Seed database with fake data'
 
     def add_arguments(self, parser):
+        """Adds command line arguments.
+        
+        Args:
+            parser: Argument parser instance
+        """
         parser.add_argument('--employees', type=int, default=30, help='Number of employees to create')
 
     def handle(self, *args, **options):
+        """Main command handler that orchestrates data generation.
+        
+        Args:
+            args: Positional arguments
+            options: Command options dictionary
+        """
         num_employees = options['employees']
         
         self.stdout.write('Creating departments...')
@@ -35,6 +55,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Successfully created {num_employees} employees with related data!'))
 
     def create_departments(self):
+        """Creates predefined departments with descriptions.
+        
+        Returns:
+            List of Department objects created or retrieved
+        """
         departments_data = [
             {'name': 'Engineering', 'description': 'Software development and technical operations'},
             {'name': 'Human Resources', 'description': 'HR and employee management'},
@@ -54,6 +79,15 @@ class Command(BaseCommand):
         return departments
 
     def create_employees(self, departments, count):
+        """Creates specified number of employees with realistic data.
+        
+        Args:
+            departments: List of Department objects to assign employees to
+            count: Number of employees to create
+            
+        Returns:
+            List of Employee objects created
+        """
         employees = []
         for i in range(count):
             department = random.choice(departments)
@@ -77,12 +111,20 @@ class Command(BaseCommand):
         return employees
 
     def create_performance_reviews(self, employees):
+        """Creates performance reviews for employees with unique date constraints.
+        
+        Ensures each employee has unique review dates by tracking used dates
+        and retrying generation if conflicts occur.
+        
+        Args:
+            employees: List of Employee objects to create reviews for
+        """
         for employee in employees:
             num_reviews = random.randint(1, 3)
             used_dates = set()
             
             for _ in range(num_reviews):
-                # 确保每个员工的评估日期不重复
+                # Ensure unique review dates per employee
                 max_attempts = 10
                 for attempt in range(max_attempts):
                     review_date = fake.date_between(start_date=employee.date_joined, end_date='today')
@@ -90,7 +132,7 @@ class Command(BaseCommand):
                         used_dates.add(review_date)
                         break
                 else:
-                    # 如果10次尝试都失败，跳过这个评估
+                    # Skip this review if unable to find unique date after 10 attempts
                     continue
                     
                 Performance.objects.create(
@@ -102,6 +144,14 @@ class Command(BaseCommand):
                 )
 
     def create_attendance_records(self, employees):
+        """Creates attendance records for the last 30 days for active employees.
+        
+        Generates weekday attendance records with realistic status distribution
+        and check-in/check-out times.
+        
+        Args:
+            employees: List of Employee objects to create attendance for
+        """
         end_date = timezone.now().date()
         start_date = end_date - timedelta(days=30)
         

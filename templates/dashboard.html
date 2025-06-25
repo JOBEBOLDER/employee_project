@@ -26,9 +26,15 @@
         }
         .chart-container {
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #f0f0f0;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .chart-container:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
         }
         .chart-title {
             font-size: 1.3em;
@@ -131,13 +137,17 @@
     </div>
 
     <script>
-        // 颜色配置
+        // color palette for charts
         const colors = {
             primary: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'],
             secondary: ['#5dade2', '#ec7063', '#58d68d', '#f7dc6f', '#bb8fce', '#76d7c4']
         };
 
-        // 模拟数据（替代API调用）
+        // mock data for demonstration purposes
+        // In a real application, this data would be fetched from an API
+        // or a database.
+        // Here we simulate the data structure that would typically be returned.
+        // This data should match the structure expected by the charts and stats cards.
         const mockEmployeeData = {
             total_employees: 156,
             active_employees: 142,
@@ -181,17 +191,17 @@
 
         let charts = {};
 
-        // 获取数据并创建图表
+        //  loadDashboard 函数用于加载仪表板数据
         async function loadDashboard() {
             try {
-                // 使用模拟数据（实际项目中这里会是API调用）
+                // 
                 const employeeData = mockEmployeeData;
                 const attendanceData = mockAttendanceData;
                 
-                // 创建统计卡片
+                // create stats cards
                 createStatsCards(employeeData);
                 
-                // 创建图表
+                // create charts
                 createDepartmentChart(employeeData.employees_by_department);
                 createStatusChart(employeeData.employment_status_distribution);
                 createSalaryChart(employeeData.salary_by_department);
@@ -337,13 +347,21 @@
             });
         }
 
-        // 刷新数据功能
-        function refreshData() {
-            console.log('Refreshing dashboard data...');
+        // automatically refresh the dashboard every 5 minutes
+        setInterval(() => {
             loadDashboard();
+        }, 300000); // every 5 minutes
+
+        // Add refresh button functionality
+        function refreshData() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+            loadDashboard().then(() => {
+                document.getElementById('loadingSpinner').style.display = 'none';
+                showNotification('Data refreshed successfully!');
+            });
         }
 
-        // 导出数据功能
+        // Export data function
         function exportData() {
             const data = {
                 generated_at: new Date().toISOString(),
@@ -362,7 +380,7 @@
             linkElement.click();
         }
 
-        // 页面加载完成后初始化仪表板
+        // Initialize the dashboard when the document is ready
         document.addEventListener('DOMContentLoaded', loadDashboard);
     </script>
 </body>
