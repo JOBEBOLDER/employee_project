@@ -97,3 +97,29 @@ class PerformanceSerializer(serializers.ModelSerializer):
         if value < 1 or value > 5:
             raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value
+    
+from django.contrib.auth.models import User
+from .models import UserProfile
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """User profile serializer with role information."""
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    full_name = serializers.ReadOnlyField()
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    
+    class Meta:
+        model = UserProfile
+        fields = [
+            'id', 'username', 'email', 'full_name', 'role', 'role_display',
+            'phone', 'avatar', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+class UserSerializer(serializers.ModelSerializer):
+    """User serializer with profile information."""
+    profile = UserProfileSerializer(read_only=True)
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile']

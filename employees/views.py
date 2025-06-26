@@ -6,6 +6,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Count, Avg
 
+from rest_framework.permissions import IsAuthenticated
+
 from .models import Employee, Performance
 from .serializers import EmployeeListSerializer, EmployeeDetailSerializer, PerformanceSerializer
 
@@ -19,6 +21,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     - Employee profile endpoint with performance and attendance stats
     """
     queryset = Employee.objects.select_related('department').all()
+    permission_classes = [IsAuthenticated]  # 暂时简化权限
     
     # Filter, search, and ordering configuration
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -144,6 +147,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
     """Performance review management ViewSet with filtering capabilities."""
     queryset = Performance.objects.select_related('employee').all()
     serializer_class = PerformanceSerializer
+    permission_classes = [IsAuthenticated]  # 暂时简化权限
     
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['employee', 'rating', 'employee__department']

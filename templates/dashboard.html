@@ -76,38 +76,37 @@
 
 {% block extra_js %}
 <script>
-// 颜色配置
+// color palette for charts
 const colors = {
     primary: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'],
     secondary: ['#5dade2', '#ec7063', '#58d68d', '#f7dc6f', '#bb8fce', '#76d7c4']
 };
 
-// 获取数据并创建图表
+// global configuration for Chart.js
 async function loadDashboard() {
     try {
         showLoading(true);
         
-        // 获取员工分析数据
+        // get employee analytics data - 修改API URL    
         console.log('Loading employee analytics...');
         const employeeResponse = await fetch('/api/analytics/');
         const employeeData = await employeeResponse.json();
         console.log('Employee data:', employeeData);
         
-        // 获取考勤分析数据 - 修改API URL
+        // get attendance analytics data - 修改API URL
         console.log('Loading attendance analytics...');
         const attendanceResponse = await fetch('/api/attendance-analytics/');
         const attendanceData = await attendanceResponse.json();
         console.log('Attendance data:', attendanceData);
         
-        // 创建统计卡片
+
         createStatsCards(employeeData);
-        
-        // 创建图表
+
         createDepartmentChart(employeeData.employees_by_department || []);
         createStatusChart(employeeData.employment_status_distribution || []);
         createSalaryChart(employeeData.salary_by_department || []);
-        
-        // 修复考勤图表数据传递
+
+        // fix attendance chart data passing
         const attendanceChartData = attendanceData.monthly_overview || [];
         console.log('Attendance chart data:', attendanceChartData);
         createAttendanceChart(attendanceChartData);

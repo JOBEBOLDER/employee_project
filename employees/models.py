@@ -143,3 +143,54 @@ class Performance(models.Model):
     def __str__(self):
         """String representation of the performance review."""
         return f"{self.employee.full_name} - {self.get_rating_display()} ({self.review_date})"
+    
+from django.contrib.auth.models import User
+from django.db import models
+
+class UserProfile(models.Model):
+    """Extended user profile with role-based permissions."""
+    
+    ROLE_CHOICES = [
+        ('ADMIN', 'Administrator'),
+        ('HR', 'Human Resources'),
+        ('EMPLOYEE', 'Employee'),
+        ('MANAGER', 'Manager'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    employee = models.OneToOneField(
+        Employee, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='user_profile'
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='EMPLOYEE')
+    phone = models.CharField(max_length=20, blank=True)
+    avatar = models.URLField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_profiles'
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
+
+    @property
+    def full_name(self):
+        """Returns user's full name."""
+        return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
+
+    def has_permission(self, permission):
+        """Check if user has specific permission based on role."""
+        permissions = {
+            'ADMIN': ['view_all', 'edit_all', 'delete_all', 'manage_users'],
+            'HR': ['view_all', 'edit_employees', 'manage_attendance', 'view_reports'],
+            'MANAGER': ['view_team', 'edit_team', 'approve_leave'],
+            'EMPLOYEE': ['view_own', 'edit_own', 'request_leave'],
+        }
+        return permission in permissions.get(self.role, [])
