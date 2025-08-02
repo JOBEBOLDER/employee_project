@@ -1,13 +1,84 @@
 services:
-  web:
-    build: .
+  # 开发环境
+  web-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
     environment:
       - DEBUG=True
-      - SECRET_KEY=docker-secret-key-12345
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+      - DJANGO_SETTINGS_MODULE=employee_project.settings
+    command: python manage.py runserver 0.0.0.0:8000
+    profiles:
+      - dev
+
+  # 生产环境
+  web-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "8000:8000"
+    volumes:
+      - static_volume:/app/static
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+    environment:
+      - DEBUG=False
+      - DJANGO_SETTINGS_MODULE=employee_project.settings
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # PostgreSQL数据库（生产环境）
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=employee_management
+      - POSTGRES_USER=django
+      - POSTGRES_PASSWORD=django_password
+    ports:
+      - "5432:5432"
+    profiles:
+      - prod
+
+  # Redis缓存（生产环境）
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    profiles:
+      - prod
+
+  # Nginx反向代理（生产环境）
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web-prod
+    profiles:
+      - prod
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+  logs_volume:
